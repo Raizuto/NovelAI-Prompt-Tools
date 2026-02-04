@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    http://tampermonkey.net/
-// @version      4.9.6
+// @version      4.9.7
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and prompt saving/restoring functionality.
-// @author       x1101
-// @match        https://novelai.net/*
+// @author       x1101 & Raizuto
+// @match      https://novelai.net/image
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=novelai.net
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -332,25 +333,37 @@
             ? computeRangeOffsets(textArea, sel.getRangeAt(0))
             : [textArea.selectionStart, textArea.selectionEnd];
 
-        if (text.length === 0) {
-            hideSuggestions();
-            autocompleteContext = null;
-            return;
-        }
-
-        let searchWord, contextStart, contextEnd;
+        let searchWord = "", contextStart = 0, contextEnd = 0;
         const tagInfo = findTagByCaret(text, cursorPos);
 
         if (tagInfo) {
             searchWord = tagInfo.inner;
             contextStart = tagInfo.tagStart;
             contextEnd = tagInfo.tagEnd;
-        } else {
-            let groupStart = text.lastIndexOf(',', cursorPos - 1) + 1;
-            let groupEnd = text.indexOf(',', cursorPos);
-            if (groupEnd === -1) groupEnd = text.length;
+        } else if (text.length >= 0) {
+            // Find the start of the current word by looking for ANY separator (including space)
+            // We use a regex to find the last index of any separator before the cursor
+            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[\s,.\n|][^\s,.\n|]*$/);
+            let groupStart = lastSeparatorMatch ? lastSeparatorMatch.index + 1 : 0;
+            
+            // Look ahead for potential separators to define the word "end"
+            let nextSpace = text.indexOf(' ', cursorPos);
+            let nextComma = text.indexOf(',', cursorPos);
+            let nextPeriod = text.indexOf('.', cursorPos);
+            let nextNewline = text.indexOf('\n', cursorPos);
+            let nextPipe = text.indexOf('|', cursorPos);
+            
+            let groupEnd = text.length;
+            let bounds = [nextSpace, nextComma, nextPeriod, nextNewline, nextPipe].filter(i => i !== -1);
+            if (bounds.length > 0) groupEnd = Math.min(...bounds);
 
-            while (/\s/.test(text[groupStart])) groupStart++;
+            // SAFEGUARD: If cursor is touching text on the right (e.g. |next), lock end to cursor
+            if (cursorPos < text.length && !/[\s,.\n|]/.test(text[cursorPos])) {
+                groupEnd = cursorPos;
+            }
+
+            // Cleanup leading whitespace
+            while (groupStart < cursorPos && /\s/.test(text[groupStart])) groupStart++;
 
             contextStart = groupStart;
             contextEnd = groupEnd;
@@ -358,10 +371,17 @@
         }
 
         const tagword = searchWord.trim();
-        if (tagword.length < 2 || (!tagInfo && /^\d+(\.\d*)?$/.test(tagword))) {
-            hideSuggestions();
-            autocompleteContext = null;
-            return;
+        
+        // Ensure we trigger on empty word at the start/after separators, 
+        // but ignore if it's just a number (weight)
+        if (text.length > 0 && tagword.length < 1 && !tagInfo) {
+            // Allow triggering if we just typed a separator to show "Popular" tags
+            const lastChar = text[cursorPos - 1] || '';
+            if (!/[\s,.\n|]/.test(lastChar)) {
+                hideSuggestions();
+                autocompleteContext = null;
+                return;
+            }
         }
 
         autocompleteContext = { start: contextStart, end: contextEnd };
@@ -500,46 +520,50 @@
         const text = isCE ? activeInput.textContent : activeInput.value;
         const { start, end } = autocompleteContext;
         const textToInsert = suggestion.text.replace(/_/g, ' ');
-        const originalChunk = text.substring(start, end);
 
-        let newValue, newCursorPos;
-        const tagInfo = findTagByCaret(text, start + 1);
+        const textAfter = text.substring(end);
+        let trailingText = '';
 
-        if (tagInfo && tagInfo.tagStart === start && tagInfo.tagEnd === end) {
-            const newTag = formatTag(tagInfo.weight, textToInsert);
-            newValue = text.substring(0, start) + newTag + text.substring(end);
-            newCursorPos = start + newTag.length;
-        } else {
-            const beforeText = text.substring(0, start);
-            const afterText = text.substring(end);
-            const leadingWhitespace = (originalChunk.match(/^\s*/) || [''])[0];
-            let trailingText = '';
-            if (!afterText.trim().startsWith(',')) {
-                trailingText = ', ';
-            }
-            newValue = beforeText + leadingWhitespace + textToInsert + trailingText + afterText;
-            newCursorPos = (beforeText + leadingWhitespace + textToInsert + trailingText).length;
+        // Check for NovelAI syntax chars and existing commas
+        const nextChar = textAfter.trim()[0] || '';
+        const isFollowedBySyntax = /[|\]\}]/.test(nextChar);
+        const alreadyHasComma = nextChar === ',';
+
+        if (!isFollowedBySyntax && !alreadyHasComma) {
+            trailingText = ', ';
         }
 
         if (isCE) {
-            activeInput.textContent = newValue;
-            const range = document.createRange(), sel = window.getSelection();
-            if (activeInput.childNodes.length > 0) {
-                const textNode = activeInput.childNodes[0];
-                const finalCursorPos = Math.min(newCursorPos, textNode.textContent.length);
-                range.setStart(textNode, finalCursorPos);
-                range.collapse(true);
+            activeInput.focus();
+            const sel = window.getSelection();
+            const range = document.createRange();
+            const walker = document.createTreeWalker(activeInput, NodeFilter.SHOW_TEXT, null, false);
+            
+            let currentPos = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const len = node.textContent.length;
+                if (!startNode && currentPos + len >= start) { startNode = node; startOff = start - currentPos; }
+                if (!endNode && currentPos + len >= end) { endNode = node; endOff = end - currentPos; }
+                currentPos += len;
+            }
+
+            if (startNode && endNode) {
+                range.setStart(startNode, startOff);
+                range.setEnd(endNode, endOff);
                 sel.removeAllRanges();
                 sel.addRange(range);
+                document.execCommand('insertText', false, textToInsert + trailingText);
             }
-            activeInput.focus();
         } else {
-            activeInput.value = newValue;
-            activeInput.selectionStart = activeInput.selectionEnd = newCursorPos;
-            activeInput.focus();
+            const before = text.substring(0, start);
+            const after = text.substring(end);
+            activeInput.value = before + textToInsert + trailingText + after;
+            const newPos = (before + textToInsert + trailingText).length;
+            activeInput.setSelectionRange(newPos, newPos);
         }
-        activeInput.dispatchEvent(new Event('input', { bubbles: true }));
 
+        activeInput.dispatchEvent(new Event('input', { bubbles: true }));
         hideSuggestions();
         autocompleteContext = null;
     }
@@ -683,17 +707,46 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  function adjustInContentEditable(el, increase) {
-    const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return;
-    const text = el.innerText || el.textContent || '';
-    const [selStart, selEnd] = computeRangeOffsets(el, sel.getRangeAt(0));
-    const [start, end] = expandToCommaGroup(text, selStart, selEnd);
-    const { newText, caret } = adjustString(text, start, end, increase);
-    if (newText === text) return;
-    el.innerText = newText;
-    setCaretByOffset(el, caret);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+    function adjustInContentEditable(el, increase) {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        
+        const text = el.textContent || '';
+        const [selStart, selEnd] = computeRangeOffsets(el, sel.getRangeAt(0));
+        const [start, end] = expandToCommaGroup(text, selStart, selEnd);
+        
+        const { newText, caret } = adjustString(text, start, end, increase);
+        if (newText === text) return;
+
+        // Calculate the specific string that is replacing the segment
+        const segmentToReplace = newText.substring(start, caret); 
+
+        // Targeted replacement using Range + execCommand
+        const range = document.createRange();
+        let currentPos = 0;
+        let startNode, startOff, endNode, endOff;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+        
+        while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const len = node.textContent.length;
+            if (!startNode && currentPos + len >= start) { startNode = node; startOff = start - currentPos; }
+            if (!endNode && currentPos + len >= end) { endNode = node; endOff = end - currentPos; }
+            currentPos += len;
+        }
+
+        if (startNode && endNode) {
+            range.setStart(startNode, startOff);
+            range.setEnd(endNode, endOff);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            // This preserves \n and Macro Nodes elsewhere in the prompt
+            document.execCommand('insertText', false, segmentToReplace);
+        }
+        
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
 
   function updateWeight(increase) {
     isAdjustingWeight = true;
@@ -1546,9 +1599,10 @@
     loadTags();
     document.body.appendChild(suggestionContainer);
 
-    const isFirstRun = localStorage.getItem(FIRST_RUN_KEY) === null;
+const isFirstRun = localStorage.getItem(FIRST_RUN_KEY) === null;
     if (isFirstRun) {
         setTimeout(() => {
+            showFirstRunPopup();
             localStorage.setItem(FIRST_RUN_KEY, 'false');
         }, 1000);
     }
