@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    http://tampermonkey.net/
-// @version      4.9.7
+// @version      4.9.8
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and prompt saving/restoring functionality.
 // @author       x1101 & Raizuto
 // @match      https://novelai.net/image
@@ -341,47 +341,53 @@
             contextStart = tagInfo.tagStart;
             contextEnd = tagInfo.tagEnd;
         } else if (text.length >= 0) {
-            // Find the start of the current word by looking for ANY separator (including space)
-            // We use a regex to find the last index of any separator before the cursor
-            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[\s,.\n|][^\s,.\n|]*$/);
+            // 1. START: Look back for Comma, Period, Newline, Pipe, or @ (No space here)
+            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[,.\n|@][^,.\n|@]*$/);
             let groupStart = lastSeparatorMatch ? lastSeparatorMatch.index + 1 : 0;
             
-            // Look ahead for potential separators to define the word "end"
+            // 2. END: Look ahead for any separator (Includes space here)
             let nextSpace = text.indexOf(' ', cursorPos);
             let nextComma = text.indexOf(',', cursorPos);
             let nextPeriod = text.indexOf('.', cursorPos);
             let nextNewline = text.indexOf('\n', cursorPos);
             let nextPipe = text.indexOf('|', cursorPos);
+            let nextAt = text.indexOf('@', cursorPos);
             
             let groupEnd = text.length;
-            let bounds = [nextSpace, nextComma, nextPeriod, nextNewline, nextPipe].filter(i => i !== -1);
+            let bounds = [nextSpace, nextComma, nextPeriod, nextNewline, nextPipe, nextAt].filter(i => i !== -1);
             if (bounds.length > 0) groupEnd = Math.min(...bounds);
 
-            // SAFEGUARD: If cursor is touching text on the right (e.g. |next), lock end to cursor
-            if (cursorPos < text.length && !/[\s,.\n|]/.test(text[cursorPos])) {
+            // 3. SAFEGUARD: Don't eat existing text to the right
+            if (cursorPos < text.length && !/[\s,.\n|@]/.test(text[cursorPos])) {
                 groupEnd = cursorPos;
             }
 
-            // Cleanup leading whitespace
+            // Clean up leading spaces for the replacement context
             while (groupStart < cursorPos && /\s/.test(text[groupStart])) groupStart++;
 
             contextStart = groupStart;
             contextEnd = groupEnd;
-            searchWord = text.substring(groupStart, cursorPos).trim();
+            searchWord = text.substring(groupStart, cursorPos);
         }
 
         const tagword = searchWord.trim();
         
-        // Ensure we trigger on empty word at the start/after separators, 
-        // but ignore if it's just a number (weight)
+        // 4. RESTORED: lastChar check ensures menu triggers after separators
         if (text.length > 0 && tagword.length < 1 && !tagInfo) {
-            // Allow triggering if we just typed a separator to show "Popular" tags
             const lastChar = text[cursorPos - 1] || '';
-            if (!/[\s,.\n|]/.test(lastChar)) {
+            // If the char before cursor isn't a separator, hide menu. 
+            // If it IS a separator (like a comma), keep it open for "Popular" tags.
+            if (!/[\s,.\n|@]/.test(lastChar)) {
                 hideSuggestions();
                 autocompleteContext = null;
                 return;
             }
+        }
+
+        // Safety: Ignore pure numbers (weights)
+        if (!tagInfo && /^\d+(\.\d*)?$/.test(tagword)) {
+            hideSuggestions();
+            return;
         }
 
         autocompleteContext = { start: contextStart, end: contextEnd };
