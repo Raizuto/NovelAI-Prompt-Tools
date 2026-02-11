@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    http://tampermonkey.net/
-// @version      4.9.8
+// @version      4.9.9
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and prompt saving/restoring functionality.
 // @author       x1101 & Raizuto
 // @match      https://novelai.net/image
@@ -342,9 +342,9 @@
             contextEnd = tagInfo.tagEnd;
         } else if (text.length >= 0) {
             // 1. START: Look back for Comma, Period, Newline, Pipe, or @ (No space here)
-            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[,.\n|@][^,.\n|@]*$/);
+            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[,.\n|@|:][^,.\n|@|:]*$/);
             let groupStart = lastSeparatorMatch ? lastSeparatorMatch.index + 1 : 0;
-            
+
             // 2. END: Look ahead for any separator (Includes space here)
             let nextSpace = text.indexOf(' ', cursorPos);
             let nextComma = text.indexOf(',', cursorPos);
@@ -352,7 +352,7 @@
             let nextNewline = text.indexOf('\n', cursorPos);
             let nextPipe = text.indexOf('|', cursorPos);
             let nextAt = text.indexOf('@', cursorPos);
-            
+
             let groupEnd = text.length;
             let bounds = [nextSpace, nextComma, nextPeriod, nextNewline, nextPipe, nextAt].filter(i => i !== -1);
             if (bounds.length > 0) groupEnd = Math.min(...bounds);
@@ -371,11 +371,11 @@
         }
 
         const tagword = searchWord.trim();
-        
+
         // 4. RESTORED: lastChar check ensures menu triggers after separators
-        if (text.length > 0 && tagword.length < 1 && !tagInfo) {
+        if (text.length > 0 && tagword.length < 2 && !tagInfo) {
             const lastChar = text[cursorPos - 1] || '';
-            // If the char before cursor isn't a separator, hide menu. 
+            // If the char before cursor isn't a separator, hide menu.
             // If it IS a separator (like a comma), keep it open for "Popular" tags.
             if (!/[\s,.\n|@]/.test(lastChar)) {
                 hideSuggestions();
@@ -460,23 +460,52 @@
         return count.toString();
     }
 
-    function showSuggestions(suggestions, inputElement) {
-        suggestionContainer.innerHTML = '';
-
-        const flexContainer = document.createElement('div');
-        flexContainer.className = 'suggestions-grid';
-        suggestions.forEach(suggestion => flexContainer.appendChild(createSuggestionItem(suggestion)));
-        suggestionContainer.appendChild(flexContainer);
-
-        const rect = inputElement.getBoundingClientRect();
-        suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
-        suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
-        suggestionContainer.style.width = `max-content`;
-        suggestionContainer.style.maxWidth = `600px`;
-        suggestionContainer.style.display = 'block';
-        suggestionContainer.classList.remove('slide-out');
-        suggestionContainer.classList.add('slide-in');
+  /* --- Helper to get Caret Coordinates (Fixes Double-Box Issue) --- */
+  function getCaretCoordinates(element) {
+    const isCE = element.isContentEditable;
+    if (isCE) {
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0).cloneRange();
+        range.collapse(true);
+        const rects = range.getClientRects();
+        // Use the first rect (the actual cursor line)
+        const rect = rects.length > 0 ? rects[0] : element.getBoundingClientRect();
+        return { x: rect.left + window.scrollX, y: rect.bottom + window.scrollY };
+      }
     }
+    // Fallback for standard textareas
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + window.scrollX, y: rect.bottom + window.scrollY };
+  }
+
+  function showSuggestions(suggestions, inputElement) {
+    suggestionContainer.innerHTML = '';
+
+    const flexContainer = document.createElement('div');
+    flexContainer.className = 'suggestions-grid';
+    suggestions.forEach(suggestion => flexContainer.appendChild(createSuggestionItem(suggestion)));
+    suggestionContainer.appendChild(flexContainer);
+
+    // NEW LOGIC: Target only the caret
+    const coords = getCaretCoordinates(inputElement);
+
+    suggestionContainer.style.position = 'absolute'; // Ensure it's absolute
+    suggestionContainer.style.left = `${coords.x}px`;
+    suggestionContainer.style.top = `${coords.y + 5}px`;
+    suggestionContainer.style.width = `max-content`;
+    suggestionContainer.style.maxWidth = `600px`;
+    suggestionContainer.style.display = 'block';
+    suggestionContainer.classList.remove('slide-out');
+    suggestionContainer.classList.add('slide-in');
+
+    // Boundary check to keep it on screen
+    const containerRect = suggestionContainer.getBoundingClientRect();
+    if (containerRect.right > window.innerWidth) {
+        suggestionContainer.style.left = `${window.innerWidth - containerRect.width - 20}px`;
+    }
+  }
+
 
     function createSuggestionItem(suggestion) {
         const item = document.createElement('div');
@@ -544,7 +573,7 @@
             const sel = window.getSelection();
             const range = document.createRange();
             const walker = document.createTreeWalker(activeInput, NodeFilter.SHOW_TEXT, null, false);
-            
+
             let currentPos = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
             while (walker.nextNode()) {
                 const node = walker.currentNode;
@@ -591,7 +620,7 @@
   /* ================================================================================= */
   /* ---------------------- WEIGHT WRAPPER CORE ---------------------- */
   /* ================================================================================= */
-  const TAG_RE = /(\d+(?:\.\d+)?)::(.*?)::/g;
+  const TAG_RE = /(-?\d+(?:\.\d+)?)::(.*?)\s?::/g;
 
   function isBoundaryChar(ch) { return /[\s\n\r\t.,;:!?()\[\]{}"'`]/.test(ch); }
 
@@ -633,14 +662,19 @@
   function findTagByCaret(text, index) {
     TAG_RE.lastIndex = 0; let m;
     while ((m = TAG_RE.exec(text)) !== null) {
-      if (index > m.index && index < TAG_RE.lastIndex) {
+      if (index >= m.index && index <= TAG_RE.lastIndex) {
         return { tagStart: m.index, tagEnd: TAG_RE.lastIndex, weight: parseFloat(m[1]), inner: m[2] };
       }
     }
     return null;
   }
 
-  function formatTag(weight, inner) { return `${weight.toFixed(1)}::${inner}::`; }
+  function formatTag(weight, inner) {
+    const trimmed = inner.trim();
+    // If it ends in a digit (0-9), add a space before the closing ::
+    const suffix = (/\d$/.test(trimmed)) ? ' ' : '';
+    return `${weight.toFixed(1)}::${trimmed}${suffix}::`;
+  }
 
   function setCaretByOffset(rootEl, offset) {
     const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, null, false);
@@ -672,7 +706,7 @@
         const t = findTagByCaret(text, selStart);
         if (!t) return { newText: text, caret: selStart };
         let newWeight = Math.round((t.weight + (increase ? CONFIG.weightStep : -CONFIG.weightStep)) * 10) / 10;
-        if (newWeight <= 0 || newWeight === 1.0) {
+        if (newWeight <= -5 || newWeight === 1.0) {
           const before = text.slice(0, t.tagStart), after = text.slice(t.tagEnd);
           return { newText: before + t.inner + after, caret: (before + t.inner).length };
         }
@@ -685,7 +719,7 @@
     const tag = findTagByRange(text, start, end);
     if (tag) {
       let newWeight = Math.round((tag.weight + (increase ? CONFIG.weightStep : -CONFIG.weightStep)) * 10) / 10;
-      if (newWeight <= 0 || newWeight === 1.0) {
+      if (newWeight <= -5 || newWeight === 1.0) {
         const before = text.slice(0, tag.tagStart), after = text.slice(tag.tagEnd);
         return { newText: before + tag.inner + after, caret: (before + tag.inner).length };
       }
@@ -713,35 +747,35 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-    function adjustInContentEditable(el, increase) {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
-        
-        const text = el.textContent || '';
-        const [selStart, selEnd] = computeRangeOffsets(el, sel.getRangeAt(0));
-        const [start, end] = expandToCommaGroup(text, selStart, selEnd);
-        
-        const { newText, caret } = adjustString(text, start, end, increase);
-        if (newText === text) return;
+  function adjustInContentEditable(el, increase) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const text = el.textContent || '';
+    const [selStart, selEnd] = computeRangeOffsets(el, sel.getRangeAt(0));
+    const [start, end] = expandToCommaGroup(text, selStart, selEnd);
+
+    const { newText, caret } = adjustString(text, start, end, increase);
+    if (newText === text) return;
 
         // Calculate the specific string that is replacing the segment
-        const segmentToReplace = newText.substring(start, caret); 
+    const segmentToReplace = newText.substring(start, caret);
 
         // Targeted replacement using Range + execCommand
-        const range = document.createRange();
-        let currentPos = 0;
-        let startNode, startOff, endNode, endOff;
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
-        
-        while (walker.nextNode()) {
-            const node = walker.currentNode;
-            const len = node.textContent.length;
-            if (!startNode && currentPos + len >= start) { startNode = node; startOff = start - currentPos; }
-            if (!endNode && currentPos + len >= end) { endNode = node; endOff = end - currentPos; }
+    const range = document.createRange();
+    let currentPos = 0;
+    let startNode, startOff, endNode, endOff;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+
+    while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const len = node.textContent.length;
+    if (!startNode && currentPos + len >= start) { startNode = node; startOff = start - currentPos; }
+    if (!endNode && currentPos + len >= end) { endNode = node; endOff = end - currentPos; }
             currentPos += len;
         }
 
-        if (startNode && endNode) {
+    if (startNode && endNode) {
             range.setStart(startNode, startOff);
             range.setEnd(endNode, endOff);
             sel.removeAllRanges();
@@ -749,7 +783,7 @@
             // This preserves \n and Macro Nodes elsewhere in the prompt
             document.execCommand('insertText', false, segmentToReplace);
         }
-        
+
         el.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
@@ -1440,7 +1474,7 @@
       <div class="row">
         <div>
           <label data-tip="The amount to increase/decrease weight with each keypress (e.g., 1.1 -> 1.2).">Weight Step</label>
-          <input id="nwpw-step" type="number" step="0.1" min="0.1">
+          <input id="nwpw-step" type="number" step="0.1" min="-5.0">
         </div>
         <div>
            <label data-tip="Set the keyboard shortcut to show or hide this panel.">Toggle UI Shortcut</label>
@@ -1466,7 +1500,7 @@
         </div>
         <div>
           <label data-tip="The initial weight applied when you decrease weight on an unwrapped prompt.">Insert Down Weight</label>
-          <input id="nwpw-dnw" type="number" step="0.1" min="0">
+          <input id="nwpw-dnw" type="number" step="0.1" min="-5.0">
         </div>
       </div>
       <div class="btns">
