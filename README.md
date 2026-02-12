@@ -6,7 +6,7 @@ A simple yet powerful Violentmonkey/Tampermonkey userscript designed to supercha
 
 ## ✨ Features
 
--   **🚀 Hotkey Weight Adjustments:** Quickly increase or decrease the emphasis of your tags. Select a word and press a hotkey to wrap it in `1.3::1girl::`, saving you time and effort.
+-   **🚀 Hotkey Weight Adjustments:** Quickly increase or decrease the emphasis of your tags. Select a word and press a hotkey to wrap it in `1.3::1girl::`, saving you time and effort. **(WARNING: At this time, you CANNOT use this feature on multiple tags at once. I sugest you select them, use the hotkey ONCE, then manually change the number to what you want. Otherwise it just duplicates the tags!)**
 
     ![Adjusting prompt weights with hotkeys](https://raw.githubusercontent.com/DEX-1101/NovelAI-Prompt-Tools/refs/heads/main/sample/weight.gif)
 
