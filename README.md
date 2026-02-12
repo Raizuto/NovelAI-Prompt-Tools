@@ -24,7 +24,8 @@ Getting started is easy! Just follow these three steps.
 
 1.  **Install a Userscript Manager**
     -   You need an extension to run this script. We recommend [**Violentmonkey**](https://violentmonkey.github.io/) OR [**Tampermonkey**](https://www.tampermonkey.net/).
-2. **For Tampermonkey — Enable Developer Mode & Allow Script**
+2. **For Violentmonkey — Just follow the installation instructions on their site (it's less work than Tampermonkey)!!!**
+3. **For Tampermonkey — Enable Developer Mode & Allow Script**
    -    Open extension settings by right-clicking the Tampermonkey icon (1) and selecting "Manage Extension" (2).
          ![manage extension](https://www.tampermonkey.net/images/manage_extension.jpg)
    -    Locate and enable the "Allow User Scripts" toggle
@@ -32,14 +33,13 @@ Getting started is easy! Just follow these three steps.
    -    Enable Developer Mode by clicking the toggle at the top right.
          ![enabled dev mode](https://www.tampermonkey.net/images/developer_mode.jpg)
          
-   **!!For Violentmonkey — Just follow the installation instructions on their site (it's less work than Tampermonkey)!!**
 
 4.  **Install the Script**
     -   Click the button below to install the NovelAI Prompt Tools script directly.
 
         [![Install Userscript](https://img.shields.io/badge/Install%20Userscript-0078D7?style=for-the-badge&logo=javascript&logoColor=white)](https://github.com/Raizuto/NovelAI-Prompt-Tools/raw/refs/heads/main-forked/NovelAI_Prompt_Tools.user.js)
 
-3.  **All Set!**
+5.  **All Set!**
     -   Open or refresh the [NovelAI Image Generation](https://novelai.net/image) page. The script will be active automatically! You'll know for sure when you see the movable wrench icon appear in the bottom right corner,
 
 ---
