@@ -1,15 +1,16 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
-// @namespace    http://tampermonkey.net/
-// @version      4.9.9
+// @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
+// @version      4.9.7
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and prompt saving/restoring functionality.
 // @author       x1101 & Raizuto
-// @match      https://novelai.net/image
+// @match        https://novelai.net/image
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=novelai.net
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
+// @license      MIT
 // ==/UserScript==
 
 (function () {
@@ -38,7 +39,7 @@
     toggleUIHotkey: { key: ';',         ctrl: true,  alt: false, shift: false }, // Ctrl+;
     enableTagSuggester: false,
     suggestionLimit: 10, // NEW: Default limit for suggestions
-    tagSourceUrl: 'https://raw.githubusercontent.com/DEX-1101/NovelAI-Prompt-Tools/refs/heads/main/danbooru2026.csv',
+    tagSourceUrl: 'https://raw.githubusercontent.com/Raizuto/NovelAI-Prompt-Tools/refs/heads/main-forked/danbooru2026.csv',
     categoryColors: {
         '0': '#9ca3af', // General
         '1': '#60a5fa', // Artist
