@@ -378,7 +378,7 @@
             const lastChar = text[cursorPos - 1] || '';
             // If the char before cursor isn't a separator, hide menu.
             // If it IS a separator (like a comma), keep it open for "Popular" tags.
-            if (!/[\s,\n|@]/.test(lastChar)) {
+            if (!/[\s,.\n|@]/.test(lastChar)) {
                 hideSuggestions();
                 autocompleteContext = null;
                 return;
