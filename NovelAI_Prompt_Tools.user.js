@@ -663,7 +663,7 @@
   function findTagByCaret(text, index) {
     TAG_RE.lastIndex = 0; let m;
     while ((m = TAG_RE.exec(text)) !== null) {
-      if (index >= m.index && index <= TAG_RE.lastIndex) {
+      if (index > m.index && index < TAG_RE.lastIndex) {
         return { tagStart: m.index, tagEnd: TAG_RE.lastIndex, weight: parseFloat(m[1]), inner: m[2] };
       }
     }
