@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
-// @version      4.9.8
+// @version      4.9.9
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
 // @author       x1101 & Raizuto
 // @match        https://novelai.net/image
@@ -11,6 +11,8 @@
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @license      MIT
+// @downloadURL https://update.greasyfork.org/scripts/566219/NovelAI%20Prompt%20Tools.user.js
+// @updateURL https://update.greasyfork.org/scripts/566219/NovelAI%20Prompt%20Tools.meta.js
 // ==/UserScript==
 
 (function () {
@@ -650,6 +652,7 @@
     return [s, e];
   }
 
+
   function findTagByRange(text, start, end) {
     TAG_RE.lastIndex = 0; let m;
     while ((m = TAG_RE.exec(text)) !== null) {
@@ -663,7 +666,7 @@
   function findTagByCaret(text, index) {
     TAG_RE.lastIndex = 0; let m;
     while ((m = TAG_RE.exec(text)) !== null) {
-      if (index > m.index && index < TAG_RE.lastIndex) {
+      if (index > m.index && index <= TAG_RE.lastIndex) {
         return { tagStart: m.index, tagEnd: TAG_RE.lastIndex, weight: parseFloat(m[1]), inner: m[2] };
       }
     }
@@ -733,7 +736,10 @@
     if (!word) return { newText: text, caret: selStart };
     const before = text.slice(0, start), after = text.slice(end);
     const weight = increase ? CONFIG.insertUpWeight : CONFIG.insertDownWeight;
-    const inserted = `${weight.toFixed(1)}::${word}::`;
+    const trimmed = word.trim();
+    // If it ends in a digit (0-9), add a space before the closing ::
+    const suffix = (/\d$/.test(trimmed)) ? ' ' : '';
+    const inserted = `${weight.toFixed(1)}::${trimmed}${suffix}::`;
     return { newText: before + inserted + after, caret: (before + inserted).length };
   }
 
@@ -749,16 +755,12 @@
   }
 
   function adjustInContentEditable(el, increase) {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-
+    const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return;
     const text = el.textContent || '';
     const [selStart, selEnd] = computeRangeOffsets(el, sel.getRangeAt(0));
     const [start, end] = expandToCommaGroup(text, selStart, selEnd);
-
     const { newText, caret } = adjustString(text, start, end, increase);
     if (newText === text) return;
-
         // Calculate the specific string that is replacing the segment
     const segmentToReplace = newText.substring(start, caret);
 
@@ -779,7 +781,6 @@
     if (startNode && endNode) {
             range.setStart(startNode, startOff);
             range.setEnd(endNode, endOff);
-            sel.removeAllRanges();
             sel.addRange(range);
             // This preserves \n and Macro Nodes elsewhere in the prompt
             document.execCommand('insertText', false, segmentToReplace);
