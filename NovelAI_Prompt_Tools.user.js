@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
-// @version      4.9.9
+// @version      5.0.0
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
 // @author       x1101 & Raizuto
 // @match        https://novelai.net/image
@@ -380,7 +380,7 @@
             const lastChar = text[cursorPos - 1] || '';
             // If the char before cursor isn't a separator, hide menu.
             // If it IS a separator (like a comma), keep it open for "Popular" tags.
-            if (!/[\s,.\n|@]/.test(lastChar)) {
+            if (!/[\s,.|@]/.test(lastChar)) {
                 hideSuggestions();
                 autocompleteContext = null;
                 return;
