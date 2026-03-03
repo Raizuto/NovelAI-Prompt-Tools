@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
-// @version      5.0.2
+// @version      5.0.3
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
 // @author       x1101 & Raizuto
 // @match        https://novelai.net/image
