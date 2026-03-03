@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
-// @version      5.0.1
+// @version      5.0.2
 // @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
 // @author       x1101 & Raizuto
 // @match        https://novelai.net/image
@@ -345,7 +345,7 @@
             contextEnd = tagInfo.tagEnd;
         } else if (text.length >= 0) {
             // 1. START: Look back for Comma, Period, Newline, Pipe, or @ (No space here)
-            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[,.\n|][^,.\n|]*$/);
+            const lastSeparatorMatch = text.substring(0, cursorPos).match(/[,.\n\r:|][^,.\n\r:|]*$/);
             let groupStart = lastSeparatorMatch ? lastSeparatorMatch.index + 1 : 0;
 
             // 2. END: Look ahead for any separator (Includes space here)
@@ -361,12 +361,13 @@
             if (bounds.length > 0) groupEnd = Math.min(...bounds);
 
             // 3. SAFEGUARD: Don't eat existing text to the right
-            if (cursorPos < text.length && !/[\s,.\n|@:]/.test(text[cursorPos])) {
+            if (cursorPos < text.length && !/[\s,.\n\r|@:]/.test(text[cursorPos])) {
                 groupEnd = cursorPos;
             }
 
             // Clean up leading spaces for the replacement context
-            while (groupStart < cursorPos && /\s/.test(text[groupStart])) groupStart++;
+        while (groupStart < cursorPos && (text[groupStart] === ' ' || text[groupStart] === '\t'))
+            groupStart++;
 
             contextStart = groupStart;
             contextEnd = groupEnd;
