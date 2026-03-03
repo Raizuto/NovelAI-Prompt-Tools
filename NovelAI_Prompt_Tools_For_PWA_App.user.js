@@ -364,8 +364,8 @@
             }
 
             // Clean up leading spaces for the replacement context
-        while (groupStart < cursorPos && (text[groupStart] === ' ' || text[groupStart] === '\t'))
-            groupStart++;
+        while (groupStart < cursorPos && (text[groupStart] === ' ' || text[groupStart] === '\t')) {
+		groupStart++; }
 
 
         contextStart = groupStart;
