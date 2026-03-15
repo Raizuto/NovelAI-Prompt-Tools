@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         NovelAI Prompt Tools
 // @namespace    https://github.com/Raizuto/NovelAI-Prompt-Tools/tree/main-forked
-// @version      5.0.3
-// @description  A simple Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
+// @version      5.0.4
+// @description  A simple Violent/Tampermonkey userscript for NovelAI Image Generator that makes prompting easier with a real-time tag suggestion and fast tag weight functionality.
 // @author       x1101 & Raizuto
-// @match        https://novelai.net/image
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=novelai.net
+// @match       https://novelai.net/image
+// @icon          https://www.google.com/s2/favicons?sz=64&domain=novelai.net
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -631,8 +631,8 @@
   function expandToCommaGroup(text, startIndex, endIndex) {
       if (!text) return [startIndex, endIndex];
       let s = startIndex, e = endIndex;
-      while (s > 0 && text[s - 1] !== ',') s--;
-      while (e < text.length && text[e] !== ',') e++;
+      while (s > 0 && text[s - 1] !== ',' && text[s - 1] !== '|') s--;
+      while (e < text.length && text[e] !== ',' && text[e] !== '|') e++;
       while (s < e && /\s/.test(text[s])) s++;
       while (e > s && /\s/.test(text[e - 1])) e--;
       return [s, e];
